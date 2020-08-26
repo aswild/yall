@@ -7,9 +7,17 @@
 //!   * filename and line number for debug/trace logs
 //!   * no color or log-level prefix for Info, treating that as normal output
 
-use ansi_term::Color::{Blue, Cyan, Red, Yellow};
-use atty::{is as isatty, Stream};
+use std::io::Write;
+
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use termcolor::{Color, ColorSpec, StandardStream, WriteColor};
+
+/// re-export [`ColorChoice`] from the `termcolor` crate, for use with the [`Logger::color`]
+/// method.
+///
+/// [`ColorChoice`]: https://docs.rs/termcolor/1.1.0/termcolor/enum.ColorChoice.html
+/// [`Logger::color`] ./struct.Logger.html#method.color
+pub use termcolor::ColorChoice;
 
 /// The main struct of this crate which implements the [`Log`] trait.
 ///
@@ -19,29 +27,65 @@ use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 #[derive(Debug)]
 pub struct Logger {
     level: LevelFilter,
-    color: bool,
+    color_choice: ColorChoice,
+    colors: LogColors,
 }
 
-/// Color mode, the usual suspects. Auto is based on whether stderr is a TTY.
+// utility functions
+
 #[derive(Debug)]
-pub enum ColorMode {
-    Auto,
-    Always,
-    Never,
+struct LogColors {
+    error: ColorSpec,
+    warn: ColorSpec,
+    info: ColorSpec,
+    debug: ColorSpec,
+    trace: ColorSpec,
+}
+
+impl LogColors {
+    pub fn new() -> Self {
+        let mut error = ColorSpec::new();
+        let mut warn = ColorSpec::new();
+        let info = ColorSpec::new();
+        let mut debug = ColorSpec::new();
+        let mut trace = ColorSpec::new();
+
+        error.set_fg(Some(Color::Red)).set_bold(true);
+        warn.set_fg(Some(Color::Yellow)).set_bold(true);
+        debug.set_fg(Some(Color::Cyan));
+        trace.set_fg(Some(Color::Blue));
+
+        Self { error, warn, info, debug, trace }
+    }
+
+    pub fn get(&self, l: Level) -> &ColorSpec {
+        match l {
+            Level::Error => &self.error,
+            Level::Warn => &self.warn,
+            Level::Info => &self.info,
+            Level::Debug => &self.debug,
+            Level::Trace => &self.trace,
+        }
+    }
 }
 
 #[inline]
-fn auto_color() -> bool {
-    isatty(Stream::Stderr)
+fn map_color_choice(c: ColorChoice) -> ColorChoice {
+    if c == ColorChoice::Auto && atty::isnt(atty::Stream::Stderr) {
+        // if user requested auto but stderr isn't a TTY, change that to Never
+        ColorChoice::Never
+    } else {
+        // otherwise keep it as-is
+        c
+    }
 }
+
+// Logger implementation
 
 impl Logger {
     /// Create a Logger with the given level.
     pub fn with_level(level: LevelFilter) -> Self {
-        Self {
-            level,
-            color: auto_color(),
-        }
+        Self { level, color_choice: map_color_choice(ColorChoice::Auto), colors: LogColors::new() }
     }
 
     /// Create a Logger with the given "verbosity" number. Useful for translating from
@@ -49,29 +93,22 @@ impl Logger {
     ///
     /// 0 = Off, 1 = Error, 2 = Warn, 3 = Info, 4 = Debug, 5+ = Trace
     pub fn with_verbosity(level: usize) -> Self {
-        Self {
-            level: match level {
-                0 => LevelFilter::Off,
-                1 => LevelFilter::Error,
-                2 => LevelFilter::Warn,
-                3 => LevelFilter::Info,
-                4 => LevelFilter::Debug,
-                _ => LevelFilter::Trace,
-            },
-            color: auto_color(),
-        }
+        Self::with_level(match level {
+            0 => LevelFilter::Off,
+            1 => LevelFilter::Error,
+            2 => LevelFilter::Warn,
+            3 => LevelFilter::Info,
+            4 => LevelFilter::Debug,
+            _ => LevelFilter::Trace,
+        })
     }
 
-    /// Sets the color mode to Auto/Always/Never. If you don't call this, the default
-    /// mode is automatic based on whether stderr is a TTY.
+    /// Sets the color mode. If you don't call this, the default mode is automatic based on whether
+    /// stderr is a TTY, and whether TERM=dumb or NO_COLOR is in the environment.
     ///
     /// Returns `&mut self` so that this function can be used in builder-like syntax.
-    pub fn color(&mut self, c: ColorMode) -> &mut Self {
-        self.color = match c {
-            ColorMode::Auto => auto_color(),
-            ColorMode::Always => true,
-            ColorMode::Never => false,
-        };
+    pub fn color(&mut self, c: ColorChoice) -> &mut Self {
+        self.color_choice = c;
         self
     }
 
@@ -88,6 +125,34 @@ impl Logger {
     pub fn init(self) {
         self.try_init().expect("failed to initialize logger");
     }
+
+    /// wrapper function for the meat of the logging that returns a Result, in case
+    /// somehow the termcolors printing fails.
+    fn print_log(&self, out: &mut StandardStream, r: &Record) -> std::io::Result<()> {
+        let level = r.level();
+        out.set_color(self.colors.get(level))?;
+        match level {
+            Level::Error => writeln!(out, "[ERROR] {}", r.args()),
+            Level::Warn => writeln!(out, "[WARN] {}", r.args()),
+            Level::Info => writeln!(out, "{}", r.args()),
+            Level::Debug => writeln!(
+                out,
+                "[DEBUG][{}:{}] {}",
+                r.file().unwrap_or("?"),
+                r.line().unwrap_or(0),
+                r.args()
+            ),
+            Level::Trace => writeln!(
+                out,
+                "[TRACE][{}:{}] {}",
+                r.file().unwrap_or("?"),
+                r.line().unwrap_or(0),
+                r.args()
+            ),
+        }?;
+        out.reset()?;
+        Ok(())
+    }
 }
 
 impl Log for Logger {
@@ -100,34 +165,15 @@ impl Log for Logger {
             return;
         }
 
-        let (style, msg) = match r.level() {
-            Level::Error => (Some(Red.bold()), format!("[ERROR] {}", r.args())),
-            Level::Warn => (Some(Yellow.bold()), format!("[WARN] {}", r.args())),
-            Level::Info => (None, r.args().to_string()),
-            Level::Debug => (
-                Some(Cyan.normal()),
-                format!(
-                    "[DEBUG][{}:{}] {}",
-                    r.file().unwrap_or("?"),
-                    r.line().unwrap_or(0),
-                    r.args()
-                ),
-            ),
-            Level::Trace => (
-                Some(Blue.normal()),
-                format!(
-                    "[TRACE][{}:{}] {}",
-                    r.file().unwrap_or("?"),
-                    r.line().unwrap_or(0),
-                    r.args()
-                ),
-            ),
-        };
+        // The termcolors output stream must be mut but log takes &self, so we have to reinitialize
+        // it every time. Even with eprintln! there's still probably internal creation of io::stderr()
+        // so hopefully this isn't too much overhead.
+        let mut out = StandardStream::stderr(self.color_choice);
 
-        if self.color && style.is_some() {
-            eprintln!("{}", style.unwrap().paint(msg));
-        } else {
-            eprintln!("{}", msg);
+        if let Err(e) = self.print_log(&mut out, r) {
+            // uh oh, something in termcolor failed
+            eprintln!("LOGGING ERROR: failed to write log message because of '{}'", e);
+            eprintln!("Original message: {}: {}", r.level(), r.args());
         }
     }
 
