@@ -1,37 +1,54 @@
-//! yall: Yet Another Little Logger implementation
+//! # yall: Yet Another Little Logger implementation
 //!
 //! Satisfies what I need for console applications, that is:
 //!   * minimal dependencies
 //!   * log to stderr
-//!   * simple standard ANSI terminal colors
-//!   * filename and line number for debug/trace logs
+//!   * simple standard terminal colors
+//!   * filename and line number for debug/trace logs, but not other levels
 //!   * no color or log-level prefix for Info, treating that as normal output
 
 use std::io::Write;
 
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
-use termcolor::{Color, ColorSpec, StandardStream, WriteColor};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-/// re-export [`ColorChoice`] from the `termcolor` crate, for use with the [`Logger::color`]
-/// method.
-///
-/// [`ColorChoice`]: https://docs.rs/termcolor/1.1.0/termcolor/enum.ColorChoice.html
-/// [`Logger::color`] ./struct.Logger.html#method.color
-pub use termcolor::ColorChoice;
-
-/// The main struct of this crate which implements the [`Log`] trait.
-///
-/// Create one with `with_level` or `with_verbosity` and then call `init` or `try_init` on it.
-///
-/// [`Log`]: https://docs.rs/log/0.4.11/log/trait.Log.html
+/// Whether to enable colored output, the usual suspects.
 #[derive(Debug)]
-pub struct Logger {
-    level: LevelFilter,
-    color_choice: ColorChoice,
-    colors: LogColors,
+pub enum ColorMode {
+    /// enable color unless stderr is not a TTY, `TERM` in the environment is empty or set to
+    /// `dumb`, or if `NO_COLOR` is set in the environment.
+    Auto,
+    /// never enable colored output
+    Always,
+    /// always enabled colored output
+    Never,
 }
 
-// utility functions
+impl ColorMode {
+    /// internal function to map ColorMode to a termcolor::ColorChoice that Logger uses internally.
+    /// This is mainly to keep termcolor out of yall's API.
+    fn to_color_choice(&self) -> ColorChoice {
+        match self {
+            ColorMode::Auto => {
+                if atty::is(atty::Stream::Stderr) {
+                    // termcolor will check for TERM and NO_COLOR when creating a StandardStream
+                    ColorChoice::Auto
+                } else {
+                    ColorChoice::Never
+                }
+            }
+            ColorMode::Always => ColorChoice::Always,
+            ColorMode::Never => ColorChoice::Never,
+        }
+    }
+}
+
+impl Default for ColorMode {
+    /// the default ColorMode is `Auto`
+    fn default() -> Self {
+        Self::Auto
+    }
+}
 
 #[derive(Debug)]
 struct LogColors {
@@ -69,23 +86,26 @@ impl LogColors {
     }
 }
 
-#[inline]
-fn map_color_choice(c: ColorChoice) -> ColorChoice {
-    if c == ColorChoice::Auto && atty::isnt(atty::Stream::Stderr) {
-        // if user requested auto but stderr isn't a TTY, change that to Never
-        ColorChoice::Never
-    } else {
-        // otherwise keep it as-is
-        c
-    }
+/// The main struct of this crate which implements the [`Log`] trait.
+///
+/// Create one with `with_level` or `with_verbosity` and then call `init` or `try_init` on it.
+///
+/// [`Log`]: https://docs.rs/log/0.4.11/log/trait.Log.html
+#[derive(Debug)]
+pub struct Logger {
+    level: LevelFilter,
+    color_choice: ColorChoice,
+    colors: LogColors,
 }
-
-// Logger implementation
 
 impl Logger {
     /// Create a Logger with the given level.
     pub fn with_level(level: LevelFilter) -> Self {
-        Self { level, color_choice: map_color_choice(ColorChoice::Auto), colors: LogColors::new() }
+        Self {
+            level,
+            color_choice: ColorMode::default().to_color_choice(),
+            colors: LogColors::new(),
+        }
     }
 
     /// Create a Logger with the given "verbosity" number. Useful for translating from
@@ -103,12 +123,13 @@ impl Logger {
         })
     }
 
-    /// Sets the color mode. If you don't call this, the default mode is automatic based on whether
-    /// stderr is a TTY, and whether TERM=dumb or NO_COLOR is in the environment.
+    /// Sets the color mode, see [`ColorMode`] for details.
     ///
-    /// Returns `&mut self` so that this function can be used in builder-like syntax.
-    pub fn color(&mut self, c: ColorChoice) -> &mut Self {
-        self.color_choice = c;
+    /// Returns `&mut self` so that this function can be used with builder syntax.
+    ///
+    /// [`ColorMode`]: enum.ColorMode.html
+    pub fn color(&mut self, c: ColorMode) -> &mut Self {
+        self.color_choice = c.to_color_choice();
         self
     }
 
