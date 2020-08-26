@@ -13,12 +13,7 @@ fn main() {
                 .multiple(true)
                 .help("be more verbose"),
         )
-        .arg(
-            Arg::with_name("quiet")
-                .short("q")
-                .long("quiet")
-                .help("be quiet"),
-        )
+        .arg(Arg::with_name("quiet").short("q").long("quiet").help("be quiet"))
         .arg(
             Arg::with_name("level")
                 .short("l")
