@@ -3,12 +3,16 @@ name = "yall"
 version = "0.1.0"
 authors = ["Allen Wild <allenwild93@gmail.com>"]
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/aswild/yall"
+description = "A simple lightweight backend for the log crate."
+keywords = ["logging"]
+categories = ["development-tools::debugging"]
 edition = "2018"
 
 [dependencies]
-atty = "0.2.14"
-log = { version = "0.4.11", features = ["std"] }
-termcolor = "1.1.0"
+atty = "0.2"
+log = { version = "0.4", features = ["std"] }
+termcolor = "1.1"
 
 [dev-dependencies]
-clap = { version = "2.33.3", default-features = false }
+clap = { version = "2", default-features = false }
