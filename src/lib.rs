@@ -1,3 +1,6 @@
+// Copyright (c) 2020 Allen Wild
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! # yall: Yet Another Little Logger
 //!
 //! A simple lightweight backend for the [`log`] crate.

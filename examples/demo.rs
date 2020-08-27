@@ -1,3 +1,6 @@
+// Copyright (c) 2020 Allen Wild
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Demo of using yall::Logger with a basic `clap` app
 
 use clap::{App, Arg};
