@@ -1,13 +1,19 @@
-//! # yall: Yet Another Little Logger implementation
+//! # yall: Yet Another Little Logger
 //!
-//! Satisfies what I need for console applications, that is:
-//!   * minimal dependencies
-//!   * log to stderr
-//!   * simple standard terminal colors
-//!   * filename and line number for debug/trace logs, but not other levels
-//!   * no color or log-level prefix for Info, treating that as normal output
+//! A simple lightweight backend for the [`log`] crate.
+//!
+//!   * Logs to stderr
+//!   * Simple standard terminal colors, no RGB or 256-color themes that may clash with the
+//!     terminal theme
+//!   * Info level messages are unformatted with no color or prefix
+//!   * Error/Warn/Debug/Trace messages are Red/Yellow/Cyan/Blue, respectively
+//!   * Debug and Trace levels show the filename and line number.
+//!   * Minimal dependencies
+//!   * Configured with code rather than environment variables
+//!
+//! [`log`]: https://docs.rs/log/latest
 
-use std::io::Write;
+use std::io::{self, Write};
 
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -23,17 +29,19 @@ pub mod log_macros {
 /// Whether to enable colored output, the usual suspects.
 #[derive(Debug)]
 pub enum ColorMode {
-    /// enable color unless stderr is not a TTY, `TERM` in the environment is empty or set to
-    /// `dumb`, or if `NO_COLOR` is set in the environment.
+    /// Enable color automatically if stderr is a tty, plus the `TERM` and `NO_COLOR` environment
+    /// variable checks done by `termcolor`'s [`ColorChoice::Auto`][ccauto] variant.
+    ///
+    /// [ccauto]: https://docs.rs/termcolor/latest/termcolor/enum.ColorChoice.html#variant.Auto
     Auto,
-    /// never enable colored output
+    /// Always enable colored output.
     Always,
-    /// always enabled colored output
+    /// Never enable colored output.
     Never,
 }
 
 impl ColorMode {
-    /// internal function to map ColorMode to a termcolor::ColorChoice that Logger uses internally.
+    /// Internal function to map ColorMode to a termcolor::ColorChoice that Logger uses internally.
     /// This is mainly to keep termcolor out of yall's API.
     fn to_color_choice(&self) -> ColorChoice {
         match self {
@@ -52,7 +60,7 @@ impl ColorMode {
 }
 
 impl Default for ColorMode {
-    /// the default ColorMode is `Auto`
+    /// The default ColorMode is `Auto`
     fn default() -> Self {
         Self::Auto
     }
@@ -69,16 +77,13 @@ struct LogColors {
 
 impl LogColors {
     pub fn new() -> Self {
-        let mut error = ColorSpec::new();
-        let mut warn = ColorSpec::new();
+        // The set_* functions return &mut, so we need to_owned() to convert back to an actual
+        // value. Since ColorSpec doesn't implement Copy, we can't just dereference.
+        let error = ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true).to_owned();
+        let warn = ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true).to_owned();
         let info = ColorSpec::new();
-        let mut debug = ColorSpec::new();
-        let mut trace = ColorSpec::new();
-
-        error.set_fg(Some(Color::Red)).set_bold(true);
-        warn.set_fg(Some(Color::Yellow)).set_bold(true);
-        debug.set_fg(Some(Color::Cyan));
-        trace.set_fg(Some(Color::Blue));
+        let debug = ColorSpec::new().set_fg(Some(Color::Cyan)).to_owned();
+        let trace = ColorSpec::new().set_fg(Some(Color::Blue)).to_owned();
 
         Self { error, warn, info, debug, trace }
     }
@@ -96,9 +101,9 @@ impl LogColors {
 
 /// The main struct of this crate which implements the [`Log`] trait.
 ///
-/// Create one with `with_level` or `with_verbosity` and then call `init` or `try_init` on it.
+/// Create one using `with_level` or `with_verbosity` and then call `init` or `try_init` on it.
 ///
-/// [`Log`]: https://docs.rs/log/0.4.11/log/trait.Log.html
+/// [`Log`]: https://docs.rs/log/latest/log/trait.Log.html
 #[derive(Debug)]
 pub struct Logger {
     level: LevelFilter,
@@ -108,7 +113,7 @@ pub struct Logger {
 
 impl Logger {
     /// Create a Logger with the given level.
-    pub fn with_level(level: LevelFilter) -> Self {
+    pub fn with_level(level: LevelFilter) -> Logger {
         Self {
             level,
             color_choice: ColorMode::default().to_color_choice(),
@@ -116,11 +121,11 @@ impl Logger {
         }
     }
 
-    /// Create a Logger with the given "verbosity" number. Useful for translating from
-    /// the number of -v flags on the command line.
+    /// Create a Logger with the given "verbosity" number. Useful for translating a number of -v
+    /// flags in command-line arguments.
     ///
     /// 0 = Off, 1 = Error, 2 = Warn, 3 = Info, 4 = Debug, 5+ = Trace
-    pub fn with_verbosity(level: usize) -> Self {
+    pub fn with_verbosity(level: usize) -> Logger {
         Self::with_level(match level {
             0 => LevelFilter::Off,
             1 => LevelFilter::Error,
@@ -131,20 +136,16 @@ impl Logger {
         })
     }
 
-    /// Sets the color mode, see [`ColorMode`] for details.
-    ///
-    /// Returns `&mut self` so that this function can be used with builder syntax.
-    ///
-    /// [`ColorMode`]: enum.ColorMode.html
-    pub fn color(&mut self, c: ColorMode) -> &mut Self {
+    /// Sets the color mode, see [`ColorMode`](enum.ColorMode.html) for details.
+    pub fn color(&mut self, c: ColorMode) -> &mut Logger {
         self.color_choice = c.to_color_choice();
         self
     }
 
-    /// Register this as the global logger with the [`log`] crate.
-    /// May fail if the application has already set a logger.
+    /// Register this as the global logger with the [`log`] crate.  May fail if the application has
+    /// already set a logger.
     ///
-    /// [`log`]: https://docs.rs/log/latest/log/
+    /// [`log`]: https://docs.rs/log/latest/
     pub fn try_init(self) -> Result<(), SetLoggerError> {
         log::set_max_level(self.level);
         log::set_boxed_logger(Box::new(self))
@@ -155,9 +156,9 @@ impl Logger {
         self.try_init().expect("failed to initialize logger");
     }
 
-    /// wrapper function for the meat of the logging that returns a Result, in case
-    /// somehow the termcolors printing fails.
-    fn print_log(&self, out: &mut StandardStream, r: &Record) -> std::io::Result<()> {
+    /// Internal wrapper function for the meat of the logging that returns a Result, in case the
+    /// termcolors printing fails somehow
+    fn print_log(&self, out: &mut StandardStream, r: &Record) -> io::Result<()> {
         let level = r.level();
         out.set_color(self.colors.get(level))?;
         match level {
