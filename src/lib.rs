@@ -115,6 +115,11 @@ pub struct Logger {
 }
 
 impl Logger {
+    /// Create a logger with the default Info level
+    pub fn new() -> Logger {
+        Self::with_level(LevelFilter::Info)
+    }
+
     /// Create a Logger with the given level.
     pub fn with_level(level: LevelFilter) -> Logger {
         Self {
