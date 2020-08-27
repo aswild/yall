@@ -12,6 +12,14 @@ use std::io::Write;
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
+/// Re-exports of the error, warn, info, debug, and trace macros in the log crate.
+///
+/// Convenient for glob-importing with `use yall::log_macros::*;`
+pub mod log_macros {
+    #[doc(no_inline)]
+    pub use log::{debug, error, info, trace, warn};
+}
+
 /// Whether to enable colored output, the usual suspects.
 #[derive(Debug)]
 pub enum ColorMode {

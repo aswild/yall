@@ -1,7 +1,7 @@
 //! Demo of using yall::Logger with a basic `clap` app
 
 use clap::{App, Arg};
-use log::{debug, error, info, trace, warn};
+use yall::log_macros::*;
 use yall::Logger;
 
 fn main() {
