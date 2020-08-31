@@ -18,8 +18,12 @@
 
 use std::io::{self, Write};
 
-use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{Level, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+
+/// Re-export `log::LevelFilter`, as used in the `Logger::with_level` constructor
+#[doc(no_inline)]
+pub use log::LevelFilter;
 
 /// Re-exports of the error, warn, info, debug, and trace macros in the log crate.
 ///
