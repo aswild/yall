@@ -133,7 +133,7 @@ impl Logger {
     /// flags in command-line arguments.
     ///
     /// 0 = Off, 1 = Error, 2 = Warn, 3 = Info, 4 = Debug, 5+ = Trace
-    pub fn with_verbosity(level: usize) -> Logger {
+    pub fn with_verbosity(level: u64) -> Logger {
         Self::with_level(match level {
             0 => LevelFilter::Off,
             1 => LevelFilter::Error,

@@ -27,7 +27,7 @@ fn main() {
         .get_matches();
 
     // default level is Info, plus however many times -v was passed
-    let mut level: usize = 3 + (args.occurrences_of("verbose") as usize);
+    let mut level = 3 + args.occurrences_of("verbose");
 
     // -q overrides any -v
     if args.is_present("quiet") {
