@@ -118,6 +118,13 @@ pub struct Logger {
     colors: LogColors,
 }
 
+impl Default for Logger {
+    /// Create a logger with the default Info level
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Logger {
     /// Create a logger with the default Info level
     pub fn new() -> Logger {
