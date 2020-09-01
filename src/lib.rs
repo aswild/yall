@@ -116,6 +116,7 @@ pub struct Logger {
     level: LevelFilter,
     color_choice: ColorChoice,
     colors: LogColors,
+    use_full_filename: bool,
 }
 
 impl Default for Logger {
@@ -137,6 +138,7 @@ impl Logger {
             level,
             color_choice: ColorMode::default().to_color_choice(),
             colors: LogColors::new(),
+            use_full_filename: false,
         }
     }
 
@@ -161,6 +163,14 @@ impl Logger {
         self
     }
 
+    /// By default, yall will shorten the filename displayed in Debug and Trace logs by removing
+    /// a "src/" prefix and ".rs" suffix, if present. Use this function to disable that and print
+    /// the full unchanged filename.
+    pub fn full_filename(&mut self, full: bool) -> &mut Logger {
+        self.use_full_filename = full;
+        self
+    }
+
     /// Register this as the global logger with the [`log`] crate.  May fail if the application has
     /// already set a logger.
     ///
@@ -179,6 +189,20 @@ impl Logger {
     /// termcolors printing fails somehow
     fn print_log(&self, out: &mut StandardStream, r: &Record) -> io::Result<()> {
         let level = r.level();
+
+        // strip "src/" prefix and ".rs" suffix
+        let mut filename = r.file().unwrap_or("?");
+        if !self.use_full_filename && (level == Level::Debug || level == Level::Trace) {
+            // we could use str::strip_{prefix,suffix} here, but they're not stable until
+            // rust 1.45 and return Options which is kinda clunky.
+            if filename.starts_with("src/") {
+                filename = &filename[4..];
+            }
+            if filename.ends_with(".rs") {
+                filename = &filename[..(filename.len()-3)];
+            }
+        }
+
         out.set_color(self.colors.get(level))?;
         match level {
             Level::Error => writeln!(out, "[ERROR] {}", r.args()),
@@ -187,14 +211,14 @@ impl Logger {
             Level::Debug => writeln!(
                 out,
                 "[DEBUG][{}:{}] {}",
-                r.file().unwrap_or("?"),
+                filename,
                 r.line().unwrap_or(0),
                 r.args()
             ),
             Level::Trace => writeln!(
                 out,
                 "[TRACE][{}:{}] {}",
-                r.file().unwrap_or("?"),
+                filename,
                 r.line().unwrap_or(0),
                 r.args()
             ),
