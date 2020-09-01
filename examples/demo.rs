@@ -8,15 +8,21 @@ use yall::log_macros::*;
 use yall::Logger;
 
 fn main() {
+    #[rustfmt::skip]
     let args = App::new("yall example")
         .arg(
             Arg::with_name("verbose")
                 .short("v")
                 .long("verbose")
                 .multiple(true)
-                .help("be more verbose"),
+                .help("be more verbose")
         )
-        .arg(Arg::with_name("quiet").short("q").long("quiet").help("be quiet"))
+        .arg(
+            Arg::with_name("quiet")
+                .short("q")
+                .long("quiet")
+                .help("be quiet")
+        )
         .arg(
             Arg::with_name("level")
                 .short("l")
@@ -28,7 +34,7 @@ fn main() {
             Arg::with_name("filename")
                 .short("F")
                 .long("full-filename")
-                .help("Show the full non-abbreviated filename in debug/trace logs")
+                .help("Show the full non-abbreviated filename in debug/trace logs"),
         )
         .get_matches();
 

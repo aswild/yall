@@ -199,7 +199,7 @@ impl Logger {
                 filename = &filename[4..];
             }
             if filename.ends_with(".rs") {
-                filename = &filename[..(filename.len()-3)];
+                filename = &filename[..(filename.len() - 3)];
             }
         }
 
@@ -208,20 +208,12 @@ impl Logger {
             Level::Error => writeln!(out, "[ERROR] {}", r.args()),
             Level::Warn => writeln!(out, "[WARN] {}", r.args()),
             Level::Info => writeln!(out, "{}", r.args()),
-            Level::Debug => writeln!(
-                out,
-                "[DEBUG][{}:{}] {}",
-                filename,
-                r.line().unwrap_or(0),
-                r.args()
-            ),
-            Level::Trace => writeln!(
-                out,
-                "[TRACE][{}:{}] {}",
-                filename,
-                r.line().unwrap_or(0),
-                r.args()
-            ),
+            Level::Debug => {
+                writeln!(out, "[DEBUG][{}:{}] {}", filename, r.line().unwrap_or(0), r.args())
+            }
+            Level::Trace => {
+                writeln!(out, "[TRACE][{}:{}] {}", filename, r.line().unwrap_or(0), r.args())
+            }
         }?;
         out.reset()?;
         Ok(())
