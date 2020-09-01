@@ -24,6 +24,12 @@ fn main() {
                 .takes_value(true)
                 .help("set the numberic level, from 0=off to 5=trace"),
         )
+        .arg(
+            Arg::with_name("filename")
+                .short("F")
+                .long("full-filename")
+                .help("Show the full non-abbreviated filename in debug/trace logs")
+        )
         .get_matches();
 
     // default level is Info, plus however many times -v was passed
@@ -40,7 +46,7 @@ fn main() {
     }
 
     // create and register the logger
-    Logger::with_verbosity(level).init();
+    Logger::with_verbosity(level).full_filename(args.is_present("filename")).init();
 
     trace!("loud noises");
     debug!("squash these bugs");
