@@ -158,7 +158,7 @@ impl Logger {
     }
 
     /// Sets the color mode, see [`ColorMode`](enum.ColorMode.html) for details.
-    pub fn color(&mut self, c: ColorMode) -> &mut Logger {
+    pub fn color(mut self, c: ColorMode) -> Logger {
         self.color_choice = c.to_color_choice();
         self
     }
@@ -166,7 +166,7 @@ impl Logger {
     /// By default, yall will shorten the filename displayed in Debug and Trace logs by removing
     /// a "src/" prefix and ".rs" suffix, if present. Use this function to disable that and print
     /// the full unchanged filename.
-    pub fn full_filename(&mut self, full: bool) -> &mut Logger {
+    pub fn full_filename(mut self, full: bool) -> Logger {
         self.use_full_filename = full;
         self
     }
