@@ -1,5 +1,8 @@
 # yall: Yet Another Little Logger
 
+[![Crates.io](https://img.shields.io/crates/v/yall.svg)](https://crates.io/crates/yall)
+[![Docs.rs](https://docs.rs/yall/badge.svg)](https://docs.rs/yall)
+
 A simple lightweight backend for the [`log`](https://crates.io/crates/log) crate.
 
   * Logs to stderr
