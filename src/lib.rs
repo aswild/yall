@@ -3,18 +3,18 @@
 
 //! # yall: Yet Another Little Logger
 //!
-//! A simple lightweight backend for the [`log`] crate.
+//! A simple lightweight backend for the [`log`](::log) crate.
 //!
 //!   * Logs to stderr
 //!   * Simple standard terminal colors, no RGB or 256-color themes that may clash with the
 //!     terminal theme
+//!   * By default, color is auto-detected based on whether stderr is a tty, but can be forced
+//!     on or off with the [`Logger::color`] method.
 //!   * Info level messages are unformatted with no color or prefix
 //!   * Error/Warn/Debug/Trace messages are Red/Yellow/Cyan/Blue, respectively
 //!   * Debug and Trace levels show the filename and line number.
 //!   * Minimal dependencies
 //!   * Configured with code rather than environment variables
-//!
-//! [`log`]: https://docs.rs/log/latest
 
 use std::fmt;
 use std::io::{self, Write};
@@ -23,7 +23,6 @@ use std::sync::Mutex;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
-/// Re-export `log::LevelFilter`, as used in the `Logger::with_level` constructor
 #[doc(no_inline)]
 pub use log::LevelFilter;
 
@@ -39,9 +38,7 @@ pub mod log_macros {
 #[derive(Debug)]
 pub enum ColorMode {
     /// Enable color automatically if stderr is a tty, plus the `TERM` and `NO_COLOR` environment
-    /// variable checks done by `termcolor`'s [`ColorChoice::Auto`][ccauto] variant.
-    ///
-    /// [ccauto]: https://docs.rs/termcolor/latest/termcolor/enum.ColorChoice.html#variant.Auto
+    /// variable checks done by `termcolor`'s [`ColorChoice::Auto`] variant.
     Auto,
     /// Always enable colored output.
     Always,
@@ -110,9 +107,9 @@ impl LogColors {
 
 /// The main struct of this crate which implements the [`Log`] trait.
 ///
-/// Create one using `with_level` or `with_verbosity` and then call `init` or `try_init` on it.
-///
-/// [`Log`]: https://docs.rs/log/latest/log/trait.Log.html
+/// Create one using [`with_level`](Self::with_level) or
+/// [`with_verbosity`](Self::with_verbosity) and then call [`init`](Self::init) or
+/// [`try_init`](Self::try_init) on it.
 pub struct Logger {
     level: LevelFilter,
     colors: LogColors,
@@ -134,14 +131,14 @@ impl fmt::Debug for Logger {
 }
 
 impl Default for Logger {
-    /// Create a logger with the default Info level
+    /// Create a Logger with the default Info level
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl Logger {
-    /// Create a logger with the default Info level
+    /// Create a Logger with the default Info level
     pub fn new() -> Logger {
         Self::with_level(LevelFilter::Info)
     }
@@ -171,7 +168,7 @@ impl Logger {
         })
     }
 
-    /// Sets the color mode, see [`ColorMode`](enum.ColorMode.html) for details.
+    /// Sets the color mode, see [`ColorMode`] for details.
     pub fn color(mut self, c: ColorMode) -> Logger {
         // we can't change the ColorChoice of a StandardStream, but we can just re-create it
         self.out = Mutex::new(StandardStream::stderr(c.to_color_choice()));
@@ -186,22 +183,21 @@ impl Logger {
         self
     }
 
-    /// Register this as the global logger with the [`log`] crate.  May fail if the application has
+    /// Register this as the global logger with the [`log`](::log) crate. May fail if the application has
     /// already set a logger.
-    ///
-    /// [`log`]: https://docs.rs/log/latest/
     pub fn try_init(self) -> Result<(), SetLoggerError> {
         log::set_max_level(self.level);
         log::set_boxed_logger(Box::new(self))
     }
 
-    /// Same as `try_init` but panic on failure.
+    /// Same as [`try_init`](Self::try_init) but panic on failure.
     pub fn init(self) {
         self.try_init().expect("failed to initialize logger");
     }
 
     /// Internal wrapper function for the meat of the logging that returns a Result, in case the
-    /// termcolors printing fails somehow
+    /// termcolors printing fails somehow. Assumes that we've already checked that the record's
+    /// log level is in fact enabled.
     fn print_log(&self, r: &Record) -> io::Result<()> {
         let level = r.level();
 
