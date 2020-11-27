@@ -249,5 +249,8 @@ impl Log for Logger {
         }
     }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        let mut out = self.out.lock().unwrap();
+        let _ = out.flush();
+    }
 }
