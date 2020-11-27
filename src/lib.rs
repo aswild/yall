@@ -16,7 +16,9 @@
 //!
 //! [`log`]: https://docs.rs/log/latest
 
+use std::fmt;
 use std::io::{self, Write};
+use std::sync::Mutex;
 
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -111,12 +113,24 @@ impl LogColors {
 /// Create one using `with_level` or `with_verbosity` and then call `init` or `try_init` on it.
 ///
 /// [`Log`]: https://docs.rs/log/latest/log/trait.Log.html
-#[derive(Debug)]
 pub struct Logger {
     level: LevelFilter,
-    color_choice: ColorChoice,
     colors: LogColors,
     use_full_filename: bool,
+    out: Mutex<StandardStream>,
+}
+
+// StandardStream doesn't impl Debug, so we can't derive it. Instead do this manual implementation
+// with a dummy value for out.
+impl fmt::Debug for Logger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Logger")
+            .field("level", &self.level)
+            .field("colors", &self.colors)
+            .field("use_full_filename", &self.use_full_filename)
+            .field("out", &"Mutex<termcolor::StandardStream::stderr>")
+            .finish()
+    }
 }
 
 impl Default for Logger {
@@ -136,9 +150,9 @@ impl Logger {
     pub fn with_level(level: LevelFilter) -> Logger {
         Self {
             level,
-            color_choice: ColorMode::default().to_color_choice(),
             colors: LogColors::new(),
             use_full_filename: false,
+            out: Mutex::new(StandardStream::stderr(ColorMode::default().to_color_choice())),
         }
     }
 
@@ -159,7 +173,8 @@ impl Logger {
 
     /// Sets the color mode, see [`ColorMode`](enum.ColorMode.html) for details.
     pub fn color(mut self, c: ColorMode) -> Logger {
-        self.color_choice = c.to_color_choice();
+        // we can't change the ColorChoice of a StandardStream, but we can just re-create it
+        self.out = Mutex::new(StandardStream::stderr(c.to_color_choice()));
         self
     }
 
@@ -187,7 +202,7 @@ impl Logger {
 
     /// Internal wrapper function for the meat of the logging that returns a Result, in case the
     /// termcolors printing fails somehow
-    fn print_log(&self, out: &mut StandardStream, r: &Record) -> io::Result<()> {
+    fn print_log(&self, r: &Record) -> io::Result<()> {
         let level = r.level();
 
         // strip "src/" prefix and ".rs" suffix
@@ -203,6 +218,7 @@ impl Logger {
             }
         }
 
+        let mut out = self.out.lock().unwrap();
         out.set_color(self.colors.get(level))?;
         match level {
             Level::Error => writeln!(out, "[ERROR] {}", r.args()),
@@ -230,12 +246,7 @@ impl Log for Logger {
             return;
         }
 
-        // The termcolors output stream must be mut but log takes &self, so we have to reinitialize
-        // it every time. Even with eprintln! there's still probably internal creation of io::stderr()
-        // so hopefully this isn't too much overhead.
-        let mut out = StandardStream::stderr(self.color_choice);
-
-        if let Err(e) = self.print_log(&mut out, r) {
+        if let Err(e) = self.print_log(r) {
             // uh oh, something in termcolor failed
             eprintln!("LOGGING ERROR: failed to write log message because of '{}'", e);
             eprintln!("Original message: {}: {}", r.level(), r.args());
