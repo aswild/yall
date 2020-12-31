@@ -105,6 +105,51 @@ impl LogColors {
     }
 }
 
+/// Internal extension trait for working with log::LevelFilter as an integer. Since LevelFilter is
+/// Copy, all these methods take self by value to avoid unnecessary pointers.
+trait LevelFilterExt {
+    fn from_int(val: u64) -> Self;
+    fn to_int(self) -> u64;
+    fn add(self, change: u64) -> Self;
+    fn sub(self, change: u64) -> Self;
+}
+
+// LevelFilter is Copy and repr(usize) and the match blocks here are the same as LevelFilter's
+// discriminant order, so they compile down to almost nothing. from_int is one branch for val>5,
+// to_int is a single move that basically gets inlined into a nop.
+// Not that this is hot code anyway...
+impl LevelFilterExt for LevelFilter {
+    fn from_int(val: u64) -> Self {
+        match val {
+            0 => LevelFilter::Off,
+            1 => LevelFilter::Error,
+            2 => LevelFilter::Warn,
+            3 => LevelFilter::Info,
+            4 => LevelFilter::Debug,
+            _ => LevelFilter::Trace,
+        }
+    }
+
+    fn to_int(self) -> u64 {
+        match self {
+            LevelFilter::Off => 0,
+            LevelFilter::Error => 1,
+            LevelFilter::Warn => 2,
+            LevelFilter::Info => 3,
+            LevelFilter::Debug => 4,
+            LevelFilter::Trace => 5,
+        }
+    }
+
+    fn add(self, change: u64) -> Self {
+        Self::from_int(self.to_int().saturating_add(change))
+    }
+
+    fn sub(self, change: u64) -> Self {
+        Self::from_int(self.to_int().saturating_sub(change))
+    }
+}
+
 /// The main struct of this crate which implements the [`Log`] trait.
 ///
 /// Create one using [`with_level`](Self::with_level) or
@@ -158,14 +203,21 @@ impl Logger {
     ///
     /// 0 = Off, 1 = Error, 2 = Warn, 3 = Info, 4 = Debug, 5+ = Trace
     pub fn with_verbosity(level: u64) -> Logger {
-        Self::with_level(match level {
-            0 => LevelFilter::Off,
-            1 => LevelFilter::Error,
-            2 => LevelFilter::Warn,
-            3 => LevelFilter::Info,
-            4 => LevelFilter::Debug,
-            _ => LevelFilter::Trace,
-        })
+        Self::with_level(LevelFilter::from_int(level))
+    }
+
+    /// Increase the verbosity level by the amount given. Takes a `u64` as returned by clap's
+    /// `ArgMatches::occurrences_of` method.
+    pub fn verbose(mut self, change: u64) -> Logger {
+        self.level = self.level.add(change);
+        self
+    }
+
+    /// Decrease the verbosity level by the amount given. Takes a `u64` as returned by clap's
+    /// `ArgMatches::occurrences_of` method.
+    pub fn quiet(mut self, change: u64) -> Logger {
+        self.level = self.level.sub(change);
+        self
     }
 
     /// Sets the color mode, see [`ColorMode`] for details.
