@@ -20,6 +20,7 @@ use std::fmt;
 use std::io::{self, Write};
 use std::sync::Mutex;
 
+use is_terminal::IsTerminal;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -52,7 +53,7 @@ impl ColorMode {
     fn to_color_choice(&self) -> ColorChoice {
         match self {
             ColorMode::Auto => {
-                if atty::is(atty::Stream::Stderr) {
+                if io::stderr().is_terminal() {
                     // termcolor will check for TERM and NO_COLOR when creating a StandardStream
                     ColorChoice::Auto
                 } else {
