@@ -17,10 +17,9 @@
 //!   * Configured with code rather than environment variables
 
 use std::fmt;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::sync::Mutex;
 
-use is_terminal::IsTerminal;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
