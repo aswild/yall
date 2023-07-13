@@ -109,10 +109,10 @@ impl LogColors {
 /// Internal extension trait for working with log::LevelFilter as an integer. Since LevelFilter is
 /// Copy, all these methods take self by value to avoid unnecessary pointers.
 trait LevelFilterExt {
-    fn from_int(val: u64) -> Self;
-    fn to_int(self) -> u64;
-    fn add(self, change: u64) -> Self;
-    fn sub(self, change: u64) -> Self;
+    fn from_int(val: u8) -> Self;
+    fn to_int(self) -> u8;
+    fn add(self, change: u8) -> Self;
+    fn sub(self, change: u8) -> Self;
 }
 
 // LevelFilter is Copy and repr(usize) and the match blocks here are the same as LevelFilter's
@@ -120,7 +120,7 @@ trait LevelFilterExt {
 // to_int is a single move that basically gets inlined into a nop.
 // Not that this is hot code anyway...
 impl LevelFilterExt for LevelFilter {
-    fn from_int(val: u64) -> Self {
+    fn from_int(val: u8) -> Self {
         match val {
             0 => LevelFilter::Off,
             1 => LevelFilter::Error,
@@ -131,7 +131,7 @@ impl LevelFilterExt for LevelFilter {
         }
     }
 
-    fn to_int(self) -> u64 {
+    fn to_int(self) -> u8 {
         match self {
             LevelFilter::Off => 0,
             LevelFilter::Error => 1,
@@ -142,11 +142,11 @@ impl LevelFilterExt for LevelFilter {
         }
     }
 
-    fn add(self, change: u64) -> Self {
+    fn add(self, change: u8) -> Self {
         Self::from_int(self.to_int().saturating_add(change))
     }
 
-    fn sub(self, change: u64) -> Self {
+    fn sub(self, change: u8) -> Self {
         Self::from_int(self.to_int().saturating_sub(change))
     }
 }
@@ -203,20 +203,20 @@ impl Logger {
     /// flags in command-line arguments.
     ///
     /// 0 = Off, 1 = Error, 2 = Warn, 3 = Info, 4 = Debug, 5+ = Trace
-    pub fn with_verbosity(level: u64) -> Logger {
+    pub fn with_verbosity(level: u8) -> Logger {
         Self::with_level(LevelFilter::from_int(level))
     }
 
-    /// Increase the verbosity level by the amount given. Takes a `u64` as returned by clap's
-    /// `ArgMatches::occurrences_of` method.
-    pub fn verbose(mut self, change: u64) -> Logger {
+    /// Increase the verbosity level by the amount given. Takes a `u8` as returned by
+    /// `clap::ArgMatches::get_count`.
+    pub fn verbose(mut self, change: u8) -> Logger {
         self.level = self.level.add(change);
         self
     }
 
-    /// Decrease the verbosity level by the amount given. Takes a `u64` as returned by clap's
-    /// `ArgMatches::occurrences_of` method.
-    pub fn quiet(mut self, change: u64) -> Logger {
+    /// Decrease the verbosity level by the amount given. Takes a `u8` as returned by
+    /// `clap::ArgMatches::get_count`.
+    pub fn quiet(mut self, change: u8) -> Logger {
         self.level = self.level.sub(change);
         self
     }

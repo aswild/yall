@@ -28,7 +28,7 @@ fn main() {
             Arg::new("level")
                 .short('l')
                 .long("level")
-                .value_parser(value_parser!(u64))
+                .value_parser(value_parser!(u8))
                 .conflicts_with_all(["verbose", "quiet"])
                 .help("set the numberic level, from 0=off to 5=trace"),
         )
@@ -44,13 +44,11 @@ fn main() {
     // create and register the logger. Most applications wouldn't have all three arguments used in
     // this example. Here, clap is set up so that verbose, level, and quiet are all
     // mutually-exclusive.
-    let mut logger = if let Some(level) = args.get_one::<u64>("level") {
+    let mut logger = if let Some(level) = args.get_one::<u8>("level") {
         Logger::with_verbosity(*level)
     } else {
         // can easily chain verbose and quiet adjustments
-        Logger::new()
-            .verbose(args.get_count("verbose") as u64)
-            .quiet(args.get_count("quiet") as u64)
+        Logger::new().verbose(args.get_count("verbose")).quiet(args.get_count("quiet"))
     };
 
     // Logger's builder methods pass by value instead of &mut, requiring the need to re-assign
