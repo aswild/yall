@@ -17,4 +17,4 @@ log = { version = "0.4", features = ["std"] }
 termcolor = "1.1"
 
 [dev-dependencies]
-clap = { version = "2", default-features = false }
+clap = { version = "4.3", features = ["cargo"] }
