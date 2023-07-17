@@ -31,7 +31,7 @@ pub use log::LevelFilter;
 /// Convenient for glob-importing with `use yall::log_macros::*;`
 pub mod log_macros {
     #[doc(no_inline)]
-    pub use log::{debug, error, info, trace, warn};
+    pub use log::{debug, error, info, log_enabled, trace, warn};
 }
 
 /// Whether to enable colored output, the usual suspects.
